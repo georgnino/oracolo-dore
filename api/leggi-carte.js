@@ -1,59 +1,43 @@
-exports.handler = async (event, context) => {
-    // Accetta solo richieste POST
+exports.handler = async (event) => {
+    // 1. Accetta solo richieste POST
     if (event.httpMethod !== "POST") {
-        return { statusCode: 405, body: JSON.stringify({ error: "Metodo non consentito" }) };
+        return { statusCode: 405, body: "Metodo non consentito" };
     }
 
     try {
-        // Estraiamo il prompt dai dati inviati (event.body su Netlify è una stringa)
-        const body = JSON.parse(event.body);
-        const prompt = body.prompt;
-
+        const { prompt } = JSON.parse(event.body);
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return { 
-                statusCode: 500, 
-                body: JSON.stringify({ error: "Chiave API non configurata" }) 
-            };
+            return { statusCode: 500, body: JSON.stringify({ error: "Chiave API mancante" }) };
         }
 
-        // Endpoint ufficiale di Gemini 1.5 Flash
+        // 2. Chiamata diretta a Google (senza librerie esterne)
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-        const aiResponse = await fetch(url, {
+        
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }],
-                generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 800,
-                }
+                contents: [{ parts: [{ text: prompt }] }]
             })
         });
 
-        if (!aiResponse.ok) {
-            return { statusCode: 500, body: JSON.stringify({ error: "Errore nella chiamata a Gemini" }) };
-        }
+        const data = await response.json();
+        
+        // 3. Estraiamo il responso
+        const testoIA = data.candidates[0].content.parts[0].text;
 
-        const data = await aiResponse.json();
-        const letturaTesto = data.candidates[0].content.parts[0].text;
-
-        // Su Netlify dobbiamo restituire un oggetto con statusCode e body (stringa)
         return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lettura: letturaTesto })
+            body: JSON.stringify({ lettura: testoIA })
         };
 
     } catch (error) {
-        console.error("Errore:", error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: "I fumi dell'incenso offuscano la visione." })
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ error: "L'Oracolo è temporaneamente silente." }) 
         };
     }
 };
